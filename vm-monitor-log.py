@@ -33,14 +33,11 @@ LOGS_API_ENDPOINT_REGION    =   os.getenv("LOGS_API_ENDPOINT_REGION")
 DATA_COLLECTION_ENDPOINT    =   f"https://vmstatusdce-o0w0.{LOGS_API_ENDPOINT_REGION}-1.ingest.monitor.azure.com"
 
 # Email setup
-#username_email              =   '448c41002@smtp-brevo.com' 
 sender_name                 =   'Blue City Capital Technologies, Inc'
 sender_email                =   'notifications@bluecitycapital.com' 
 receiver_name               =   'Synergex Systems'
 receiver_email              =   f'{receiver_name} <todd.gilbey@synergex-systems.com>' 
-#smtp_server                 =   'smtp-relay.brevo.com'   
-#smtp_port                   =   587
-#smtp_password               =   'hSg19RUfw6QIcV7b'
+
 
 def execution_trace(func) -> str:
     """Collects the name of the function where the issue, error or degradation resides."""
