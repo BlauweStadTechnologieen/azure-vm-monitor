@@ -83,9 +83,9 @@ def service_principal_authentication(calling_function:str = None, assign_log_num
     try:
         credentials = ClientSecretCredential(
             
-            client_id           =   '7ba7ed29-9611-4181-8f5d-dcef30399151',
-            tenant_id           =   'be3f33fc-0fa1-490c-a42e-9581ff021283',
-            client_secret       =   'RyY8Q~zq7LWuJl1g1nh54b7yIXRidwoc-BrTGb_-'
+            client_id           =   os.getenv("CLIENT_ID"), # Retrieved from environment variable
+            tenant_id           =   os.getenv("TENANT_ID"), # Retrieved from environment variable
+            client_secret       =   os.getenv("CLIENT_SECRET") # Retrieved from environment variable
 
         )
 
