@@ -17,6 +17,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+#Azure Constants
 azure_vars = {
     "SUBSCRIPTION_ID"           : os.getenv("SUBSCRIPTION_ID"),
     "LOGS_WORKSPACE_ID"         : os.getenv("LOGS_WORKSPACE_ID"),
@@ -29,11 +30,13 @@ azure_vars = {
     "CLIENT_SECRET"             : os.getenv("CLIENT_SECRET")
 }
 
+#Freshdesk API Constants
 freshdesK_vars = {
     "FRESHDESK_API_KEY"         : os.getenv("API_KEY"),
     "FRESHDESK_DOMAIN"          : os.getenv("FRESHDESK_DOMAIN")
 }
 
+#SMTP Constants 
 smtp_constants = {
     "SMTP_LOGIN"                : os.getenv("SMTP_LOGIN"),
     "SMTP_PASSWORD"             : os.getenv("SMTP_PASSWORD"),
@@ -45,9 +48,6 @@ smtp_constants = {
 # Azure Resources
 resource_group_name         =   'VMs'  
 vm_name                     =   'SynergexSystems'
-
-# Data Collection Endpoint
-#DATA_COLLECTION_ENDPOINT    =   f"https://vmstatusdce-o0w0.{azure_vars['LOGS_API_ENDPOINT_REGION']}-1.ingest.monitor.azure.com"
 
 # Email setup
 sender_name                 =   'Blue City Capital Technologies, Inc'
