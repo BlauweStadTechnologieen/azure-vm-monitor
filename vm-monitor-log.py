@@ -17,27 +17,47 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Azure subscription
-SUBSCRIPTION_ID             =   os.getenv("SUBSCRIPTION_ID")
+azure_vars = {
+    "SUBSCRIPTION_ID"           : os.getenv("SUBSCRIPTION_ID"),
+    "LOGS_WORKSPACE_ID"         : os.getenv("LOGS_WORKSPACE_ID"),
+    "LOGS_WORKSPACE_KEY"        : os.getenv("LOGS_WORKSPACE_KEY"),
+    "LOGS_API_ENDPOINT_REGION"  : os.getenv("LOGS_API_ENDPOINT_REGION"),
+    "VM_NAME"                   : "SynergexSystems",
+    "RESOURCE_GROUP"            : "VMs",
+    "CLIENT_ID"                 : os.getenv("CLIENT_ID"),
+    "TENANT_ID"                 : os.getenv("TENANT_ID"),
+    "CLIENT_SECRET"             : os.getenv("CLIENT_SECRET")
+}
+
+freshdesK_vars = {
+    "FRESHDESK_API_KEY"         : os.getenv("API_KEY"),
+    "FRESHDESK_DOMAIN"          : os.getenv("FRESHDESK_DOMAIN")
+}
+
+smtp_constants = {
+    "SMTP_LOGIN"                : os.getenv("SMTP_LOGIN"),
+    "SMTP_PASSWORD"             : os.getenv("SMTP_PASSWORD"),
+    "SMTP_SERVER"               : os.getenv("SMTP_SERVER"),
+    "SMTP_PORT"                 : os.getenv("SMTP_PORT"),
+    "SMTP_DOMAIN"               : os.getenv("SMTP_DOMAIN")
+}
 
 # Azure Resources
 resource_group_name         =   'VMs'  
 vm_name                     =   'SynergexSystems'
 
-# Logs Workspace Information
-LOGS_WORKSPACE_ID           =   os.getenv("LOGS_WORKSPACE_ID")
-LOGS_WORKSPACE_KEY          =   os.getenv("LOGS_WORKSPACE_KEY")  
-LOGS_API_ENDPOINT_REGION    =   os.getenv("LOGS_API_ENDPOINT_REGION")
-
 # Data Collection Endpoint
-DATA_COLLECTION_ENDPOINT    =   f"https://vmstatusdce-o0w0.{LOGS_API_ENDPOINT_REGION}-1.ingest.monitor.azure.com"
+#DATA_COLLECTION_ENDPOINT    =   f"https://vmstatusdce-o0w0.{azure_vars['LOGS_API_ENDPOINT_REGION']}-1.ingest.monitor.azure.com"
 
 # Email setup
 sender_name                 =   'Blue City Capital Technologies, Inc'
-sender_email                =   'notifications@bluecitycapital.com' 
 receiver_name               =   'Synergex Systems'
 receiver_email              =   f'{receiver_name} <todd.gilbey@synergex-systems.com>' 
 
+#Freskdesk
+sender_email                =   f"notifications{smtp_constants['SMTP_DOMAIN']}"
+helpdesk_contact            =   f"hello{smtp_constants['SMTP_DOMAIN']}"
+freshdesk_api_url           =   f"https://{freshdesK_vars['FRESHDESK_DOMAIN']}.freshdesk.com/api/v2/tickets/"
 
 def execution_trace(func) -> str:
     """Collects the name of the function where the issue, error or degradation resides."""
@@ -68,14 +88,12 @@ def assign_log_number(func) -> str:
             custom_message = f"There was an error in generating a log reference. Logs available {e}"
 
         if custom_message:
+            create_freshdesk_ticket(custom_message)
             print(custom_message)
         
     return wrapper
 
-# Azure Authentication
-@execution_trace
-@assign_log_number
-def service_principal_authentication(calling_function:str = None, assign_log_number = None) -> ComputeManagementClient:
+def service_principal_authentication() -> ComputeManagementClient:
     """Checks the Authentication of Azure's Service Principal"""
     
     custom_message = None
@@ -83,78 +101,22 @@ def service_principal_authentication(calling_function:str = None, assign_log_num
     try:
         credentials = ClientSecretCredential(
             
-            client_id           =   os.getenv("CLIENT_ID"), # Retrieved from environment variable
-            tenant_id           =   os.getenv("TENANT_ID"), # Retrieved from environment variable
-            client_secret       =   os.getenv("CLIENT_SECRET") # Retrieved from environment variable
+            tenant_id       =   azure_vars["TENANT_ID"], 
+            client_id       =   azure_vars["CLIENT_ID"], 
+            client_secret   =   azure_vars["CLIENT_SECRET"] 
 
         )
-
-        return ComputeManagementClient(credentials, SUBSCRIPTION_ID)
+ 
+        return ComputeManagementClient(credentials, azure_vars["SUBSCRIPTION_ID"])
 
     except Exception as e:
-        custom_message = f"There was an error in authenticating the Service Principal {e} | {calling_function}."
+        custom_message = f"There was an error in authenticating the Service Principal {e}"
 
     if custom_message:
-        send_notification(custom_message, sender_name, receiver_name, assign_log_number)
+        create_freshdesk_ticket(custom_message)
         print(custom_message)
 
-def message_body(custom_message: str, sender_name: str, receiver_name:str, incident_number:str) -> str:
-    """
-    Defines the HTML email body of the message, complete with the name of the sender, the name of the receiver, the incident number reference and the new status of the VM.
-    
-    It will also generate a support ticket to be send to Freshdesk, is a ticket number is returned, a ticket number was successful in being generated. This this is not the case, it will return a message informing the end user that a ticket was unable to be generated. 
-    
-    This is to be incorporated in the 'send_notification' method & attached to the MIMEMultipart()
-    """
-
-    was_ticket_id_generated = create_freshdesk_ticket(incident_number,custom_message)
-
-    ticket_return_message = (
-        "A support ticket was generated. You should receive this shortly."
-        if was_ticket_id_generated is not None
-        else "Apologies, but we encountered an internal technical issue that prevented the creation of a support ticket. You can still reach out to us by referencing the incident log number provided below. Thank you for your understanding and cooperation."
-    )
-
-    ticket_id           =   was_ticket_id_generated if was_ticket_id_generated is not None else "No ticket ID was generated at this time."
-    helpdesk_contact    =   'hello@bluecitycapital.com'
-
-    resource_data_table = f"""
-        <table border="0" cellpadding="5" cellspacing="0" style="border-collapse: collapse; text-align: left;">
-            <tr>
-                <th>Incident Number:</th>
-                <td>{incident_number}</td>
-            </tr>
-            <tr>
-                <th>VM Name:</th>
-                <td>{vm_name}</td>
-            </tr>
-            <tr>
-                <th>Resource Group Name:</th>
-                <td>{resource_group_name}</td>
-            </tr>
-            <tr>
-                <th>Support Ticket ID:</th>
-                <td>{ticket_id}</td>
-            </tr>
-            <tr>
-                <th>Comment:</th>
-                <td>{custom_message}</td>
-            </tr>
-        </table>
-    """
-    
-    return  f"""Dear {receiver_name}<br><br>
-        We are writing to you because an incident has occured during the normal operation of your VM, & we will now commence an investigation into this.<br><br>
-        {ticket_return_message}<br><br>
-        ======================<br>
-        {resource_data_table}
-        ======================<br>
-        If you need further assistance, please contact us at {helpdesk_contact}.<br><br>
-        Yours sincerely<br>
-        {sender_name}<br><br>
-        """
-
-def create_freshdesk_ticket(logging_incident_number:str, exception_or_error_message:str, group_id:int = 201000039106, responder_id:int = 201002411183, subject:str = "Github is a true Git sometimes!") -> int:
+def create_freshdesk_ticket(exception_or_error_message:str, custom_subject:str, group_id:int = 201000039106, responder_id:int = 201002411183) -> int:
     """
     Creates a Freshdesk ticket on behalf of the end user. This will be sent straight to the users inbox, where the user can add further information if they need to/
     
@@ -163,14 +125,12 @@ def create_freshdesk_ticket(logging_incident_number:str, exception_or_error_mess
     This function will only be called when an exception is thrown. The exception message will be passed to the 'exception' parameter.
     """
     
-    FRESHDESK_DOMAIN    = os.getenv("FRESHDESK_DOMAIN")
-    API_KEY             = os.getenv("API_KEY")
-    API_URL             = f'https://{FRESHDESK_DOMAIN}.freshdesk.com/api/v2/tickets/'
+    API_URL = f'https://{freshdesK_vars["FRESHDESK_DOMAIN"]}.freshdesk.com/api/v2/tickets/'
 
-    description = f"This support ticket has been automatically generated because of the following error or exception message {exception_or_error_message}. Log number {logging_incident_number}"
+    description = f"This support ticket has been automatically generated because of the following error or exception message {exception_or_error_message}."
 
     ticket_data = {
-        "subject"     : subject,
+        "subject"     : custom_subject,
         "description" : description, 
         'priority'    : 1,
         'status'      : 2,
@@ -188,7 +148,7 @@ def create_freshdesk_ticket(logging_incident_number:str, exception_or_error_mess
     try:
         response = requests.post(
             API_URL,
-            auth    = (API_KEY, 'X'),
+            auth    = (freshdesK_vars["FRESHDESK_API_KEY"], 'X'),
             json    = json.dumps(ticket_data),
             timeout = 30,
             headers = {'Content-Type' : 'application/json'}
@@ -222,32 +182,70 @@ def create_freshdesk_ticket(logging_incident_number:str, exception_or_error_mess
 
     if custom_message:
         print(custom_message)
-        print(logging_incident_number)
 
     return ticket_id
 
-@execution_trace
-def send_notification(custom_message: str,sender_name:str, receiver_name:str, incident_number:str, calling_function:str = None) -> None:
+def send_notification(custom_message: str,) -> None:
     """Sends a notification to the address specificed in the 'receiver_name' parameter, which will pass a custom message to the 'message_body' module.
     """
     msg             = MIMEMultipart()
     msg['Subject']  = f"System Degradation Alert | {vm_name}"
     msg['From']     = f'"{sender_name}" <{sender_email}>'
     msg['To']       = receiver_email
-    body            = MIMEText(message_body(custom_message, sender_name, receiver_name, incident_number), 'html')
+    body            = MIMEText(message_body(custom_message), 'html')
     msg.attach(body)
 
     try:
-        with smtplib.SMTP(os.getenv("SMTP_SERVER"), os.getenv("SMTP_PORT")) as server:
+        with smtplib.SMTP(smtp_constants["SMTP_SERVER"], smtp_constants["SMTP_PORT"]) as server:
             server.starttls()
-            server.login(os.getenv("SMTP_LOGIN"), os.getenv("SMTP_PASSWORD"))
+            server.login(smtp_constants["SMTP_LOGIN"], smtp_constants["SMTP_PASSWORD"])
             server.sendmail(sender_email, receiver_email, msg.as_string())
     except Exception as e:
-        print(f"{e}. {calling_function}")
+        custom_subject = "Notification Send Error"
+        create_freshdesk_ticket(e, custom_subject)
 
-@execution_trace
 @assign_log_number
-def get_vm_status(compute_client, calling_function:str = None, assign_log_number:str = None) -> str:
+def message_body(custom_message: str, assign_log_number:str = None) -> str:
+    """
+    Defines the HTML email body of the message, complete with the name of the sender, the name of the receiver, the incident number reference and the new status of the VM.
+    
+    It will also generate a support ticket to be send to Freshdesk, is a ticket number is returned, a ticket number was successful in being generated. This this is not the case, it will return a message informing the end user that a ticket was unable to be generated. 
+    
+    This is to be incorporated in the 'send_notification' method & attached to the MIMEMultipart()
+    """
+
+    resource_data_table = f"""
+        <table border="0" cellpadding="5" cellspacing="0" style="border-collapse: collapse; text-align: left;">
+            <tr>
+                <th>Incident Number:</th>
+                <td>{assign_log_number}</td>
+            </tr>
+            <tr>
+                <th>VM Name:</th>
+                <td>{vm_name}</td>
+            </tr>
+            <tr>
+                <th>Resource Group Name:</th>
+                <td>{resource_group_name}</td>
+            </tr>
+            <tr>
+                <th>Comment:</th>
+                <td>{custom_message}</td>
+            </tr>
+        </table>
+    """
+    
+    return  f"""Dear {receiver_name}<br><br>
+        We are writing to you because an incident has occured during the normal operation of your VM, & we will now commence an investigation into this.<br><br>
+        ======================<br>
+        {resource_data_table}
+        ======================<br>
+        If you need further assistance, please contact us at {os.getenv("HELPDESK_CONTACT")}.<br><br>
+        Yours sincerely<br>
+        {sender_name}<br><br>
+        """
+
+def get_vm_status(compute_client) -> str:
     """Retrieve the current status of the VM."""
     
     custom_message = None
@@ -268,7 +266,8 @@ def get_vm_status(compute_client, calling_function:str = None, assign_log_number
         custom_message   =   f"There was an error in the retrieval of the status of your VM. Full error logging is available: {e} ."
 
     if custom_message:
-        send_notification(custom_message, sender_name, receiver_name, assign_log_number)
+        custom_subject = "Error with Obtaining VM Status"
+        create_freshdesk_ticket(custom_message, custom_subject)
         print(custom_message)
 
     return custom_message
@@ -307,9 +306,8 @@ def generate_authentication_signature(workspace_id:str, workspace_key:str, body)
 
     return headers
 
-@execution_trace
 @assign_log_number
-def log_to_azure_monitor(new_vm_status:str, calling_function:str = None, assign_log_number:str = None) -> None:
+def log_to_azure_monitor(new_vm_status:str, assign_log_number:str = None) -> None:
     """Logs the incident data to Azure Monitor via HTTP Data Collector API.
     Disgreard Log Number data"""
 
@@ -321,16 +319,13 @@ def log_to_azure_monitor(new_vm_status:str, calling_function:str = None, assign_
     }]
     
     # Convert log data to JSON format
-    body                = json.dumps(log_data)
+    body    = json.dumps(log_data)
 
     # Generate the headers with the signature
-    headers             = generate_authentication_signature(LOGS_WORKSPACE_ID, LOGS_WORKSPACE_KEY, body)
+    headers = generate_authentication_signature(azure_vars["LOGS_WORKSPACE_ID"], azure_vars["LOGS_WORKSPACE_KEY"], body)
 
-    # Azure Monitor HTTP API endpoint
-    LOGS_API_ENDPOINT   = f"https://{LOGS_WORKSPACE_ID}.ods.opinsights.azure.com/api/logs?api-version=2016-04-01"
-
-    # Send the POST request to the Azure Monitor API
-
+    LOGS_API_ENDPOINT   = f"https://{azure_vars['LOGS_WORKSPACE_ID']}.ods.opinsights.azure.com/api/logs?api-version=2016-04-01"
+    
     custom_message = None
 
     try:
@@ -349,7 +344,7 @@ def log_to_azure_monitor(new_vm_status:str, calling_function:str = None, assign_
         custom_message = f"There was an error in the request retrieval. Logs available: {e}"
 
     if custom_message:
-        send_notification(custom_message,sender_name,receiver_name,assign_log_number)
+        create_freshdesk_ticket(custom_message, "Logging to Azure Monitoring System")
         print(custom_message)
 
     return
@@ -357,8 +352,9 @@ def log_to_azure_monitor(new_vm_status:str, calling_function:str = None, assign_
 def main() -> None:
     
     previous_vm_status = "PowerState/running"
-
+    
     while True:
+        
         compute_client      = service_principal_authentication()
         current_vm_status   = get_vm_status(compute_client)
 
