@@ -86,7 +86,7 @@ def assign_log_number(func) -> str:
             custom_message = f"There was an error in generating a log reference. Logs available {e}"
 
         if custom_message:
-            create_freshdesk_ticket(custom_message)
+            create_freshdesk_ticket(custom_message, "Log number generation")
             print(custom_message)
         
     return wrapper
@@ -111,7 +111,7 @@ def service_principal_authentication() -> ComputeManagementClient:
         custom_message = f"There was an error in authenticating the Service Principal {e}"
 
     if custom_message:
-        create_freshdesk_ticket(custom_message)
+        create_freshdesk_ticket(custom_message, "Service Principal Authentication")
         print(custom_message)
 
 def create_freshdesk_ticket(exception_or_error_message:str, custom_subject:str, group_id:int = 201000039106, responder_id:int = 201002411183) -> int:
@@ -205,9 +205,14 @@ def send_notification(custom_message: str,) -> None:
 @assign_log_number
 def message_body(custom_message: str, assign_log_number:str = None) -> str:
     """
-    Defines the HTML email body of the message, complete with the name of the sender, the name of the receiver, the incident number reference and the new status of the VM.
+    Defines the HTML email body of the message, complete with the name of the sender,
+    the name of the receiver, 
+    the incident number reference and the new status of the VM.
     
-    It will also generate a support ticket to be send to Freshdesk, is a ticket number is returned, a ticket number was successful in being generated. This this is not the case, it will return a message informing the end user that a ticket was unable to be generated. 
+    It will also generate a support ticket to be send to Freshdesk, 
+    is a ticket number is returned, 
+    a ticket number was successful in being generated. 
+    This this is not the case, it will return a message informing the end user that a ticket was unable to be generated. 
     
     This is to be incorporated in the 'send_notification' method & attached to the MIMEMultipart()
     """
@@ -238,9 +243,9 @@ def message_body(custom_message: str, assign_log_number:str = None) -> str:
         ======================<br>
         {resource_data_table}
         ======================<br>
-        If you need further assistance, please contact us at {os.getenv("HELPDESK_CONTACT")}.<br><br>
+        If you need further assistance, please contact us at engineering{smtp_constants['SMTP_DOMAIN']}.<br><br>
         Yours sincerely<br>
-        {sender_name}<br><br>
+        <b>{sender_name}</b><br><br>
         """
 
 def get_vm_status(compute_client) -> str:
