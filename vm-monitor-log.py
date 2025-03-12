@@ -319,23 +319,20 @@ def log_to_azure_monitor(new_vm_status:str, assign_log_number:str = None) -> Non
     }]
     
     # Convert log data to JSON format
-    body    = json.dumps(log_data)
+    body = json.dumps(log_data)
 
     # Generate the headers with the signature
     headers = generate_authentication_signature(azure_vars["LOGS_WORKSPACE_ID"], azure_vars["LOGS_WORKSPACE_KEY"], body)
 
-    LOGS_API_ENDPOINT   = f"https://{azure_vars['LOGS_WORKSPACE_ID']}.ods.opinsights.azure.com/api/logs?api-version=2016-04-01"
+    LOGS_API_ENDPOINT = f"https://{azure_vars['LOGS_WORKSPACE_ID']}.ods.opinsights.azure.com/api/logs?api-version=2016-04-01"
     
     custom_message = None
 
     try:
+        
         response = requests.post(LOGS_API_ENDPOINT, headers=headers, data=body)
         
-        if response.status_code == 200:
-            
-            custom_message = f"There is a new status to the VM {vm_name}: {new_vm_status}."
-
-        else:
+        if response.status_code != 200:
 
             custom_message = f"There was an error logging to Azure. Logging error {response.status_code}, Response: {response.text}"
 
@@ -344,6 +341,7 @@ def log_to_azure_monitor(new_vm_status:str, assign_log_number:str = None) -> Non
         custom_message = f"There was an error in the request retrieval. Logs available: {e}"
 
     if custom_message:
+        send_notification(custom_message)
         create_freshdesk_ticket(custom_message, "Logging to Azure Monitoring System")
         print(custom_message)
 
