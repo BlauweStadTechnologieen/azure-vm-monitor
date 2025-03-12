@@ -56,8 +56,6 @@ receiver_email              =   f'{receiver_name} <todd.gilbey@synergex-systems.
 
 #Freskdesk
 sender_email                =   f"notifications{smtp_constants['SMTP_DOMAIN']}"
-helpdesk_contact            =   f"hello{smtp_constants['SMTP_DOMAIN']}"
-freshdesk_api_url           =   f"https://{freshdesK_vars['FRESHDESK_DOMAIN']}.freshdesk.com/api/v2/tickets/"
 
 def execution_trace(func) -> str:
     """Collects the name of the function where the issue, error or degradation resides."""
@@ -361,7 +359,7 @@ def main() -> None:
             if current_vm_status != "PowerState/running":
             
                 log_to_azure_monitor(current_vm_status)
-                
+
         previous_vm_status = current_vm_status
         time.sleep(300)
 
