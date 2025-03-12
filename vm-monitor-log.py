@@ -357,7 +357,11 @@ def main() -> None:
         current_vm_status   = get_vm_status(compute_client)
 
         if current_vm_status != previous_vm_status:
-            log_to_azure_monitor(current_vm_status)
+            
+            if current_vm_status != "PowerState/running":
+            
+                log_to_azure_monitor(current_vm_status)
+                
         previous_vm_status = current_vm_status
         time.sleep(300)
 
