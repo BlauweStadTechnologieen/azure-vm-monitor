@@ -18,26 +18,24 @@ from dotenv import load_dotenv
 load_dotenv()
 
 #Azure Constants
-azure_vars = {
+AZURE_VARS = {
     "SUBSCRIPTION_ID"           : os.getenv("SUBSCRIPTION_ID"),
     "LOGS_WORKSPACE_ID"         : os.getenv("LOGS_WORKSPACE_ID"),
     "LOGS_WORKSPACE_KEY"        : os.getenv("LOGS_WORKSPACE_KEY"),
     "LOGS_API_ENDPOINT_REGION"  : os.getenv("LOGS_API_ENDPOINT_REGION"),
-    "VM_NAME"                   : "SynergexSystems",
-    "RESOURCE_GROUP"            : "VMs",
     "CLIENT_ID"                 : os.getenv("CLIENT_ID"),
     "TENANT_ID"                 : os.getenv("TENANT_ID"),
     "CLIENT_SECRET"             : os.getenv("CLIENT_SECRET")
 }
 
 #Freshdesk API Constants
-freshdesK_vars = {
+FRESHDESK_CREDENTIALS = {
     "FRESHDESK_API_KEY"         : os.getenv("API_KEY"),
     "FRESHDESK_DOMAIN"          : os.getenv("FRESHDESK_DOMAIN")
 }
 
 #SMTP Constants 
-smtp_constants = {
+SMTP_CREDENTIALS = {
     "SMTP_LOGIN"                : os.getenv("SMTP_LOGIN"),
     "SMTP_PASSWORD"             : os.getenv("SMTP_PASSWORD"),
     "SMTP_SERVER"               : os.getenv("SMTP_SERVER"),
@@ -45,17 +43,17 @@ smtp_constants = {
     "SMTP_DOMAIN"               : os.getenv("SMTP_DOMAIN")
 }
 
-# Azure Resources
-resource_group_name         =   'VMs'  
-vm_name                     =   'SynergexSystems'
+messaging_metadata = {
+    "sender_name"               : os.getenv("sender_name"),
+    "recipient_email"           : os.getenv("recipient_email"),
+    "recipient_name"            : os.getenv("recipient_name"),
+    "sender_email"              : f"notifications{SMTP_CREDENTIALS['SMTP_DOMAIN']}"
+}
 
-# Email setup
-sender_name                 =   'Blue City Capital Technologies, Inc'
-receiver_name               =   'Synergex Systems'
-receiver_email              =   f'{receiver_name} <todd.gilbey@synergex-systems.com>' 
-
-#Freskdesk
-sender_email                =   f"notifications{smtp_constants['SMTP_DOMAIN']}"
+service_allocation_data = {
+    "resource_group"            : os.getenv("resource_group"),
+    "virtual_machine"           : os.getenv("virtual_machine")
+}
 
 def execution_trace(func) -> str:
     """Collects the name of the function where the issue, error or degradation resides."""
@@ -99,13 +97,13 @@ def service_principal_authentication() -> ComputeManagementClient:
     try:
         credentials = ClientSecretCredential(
             
-            tenant_id       =   azure_vars["TENANT_ID"], 
-            client_id       =   azure_vars["CLIENT_ID"], 
-            client_secret   =   azure_vars["CLIENT_SECRET"] 
+            tenant_id       =   AZURE_VARS["TENANT_ID"], 
+            client_id       =   AZURE_VARS["CLIENT_ID"], 
+            client_secret   =   AZURE_VARS["CLIENT_SECRET"] 
 
         )
  
-        return ComputeManagementClient(credentials, azure_vars["SUBSCRIPTION_ID"])
+        return ComputeManagementClient(credentials, AZURE_VARS["SUBSCRIPTION_ID"])
 
     except Exception as e:
         custom_message = f"There was an error in authenticating the Service Principal {e}"
@@ -123,7 +121,7 @@ def create_freshdesk_ticket(exception_or_error_message:str, custom_subject:str, 
     This function will only be called when an exception is thrown. The exception message will be passed to the 'exception' parameter.
     """
     
-    API_URL = f'https://{freshdesK_vars["FRESHDESK_DOMAIN"]}.freshdesk.com/api/v2/tickets/'
+    API_URL = f'https://{FRESHDESK_CREDENTIALS["FRESHDESK_DOMAIN"]}.freshdesk.com/api/v2/tickets/'
 
     description = f"This support ticket has been automatically generated because of the following error or exception message {exception_or_error_message}."
 
@@ -135,8 +133,8 @@ def create_freshdesk_ticket(exception_or_error_message:str, custom_subject:str, 
         'group_id'    : group_id,
         'responder_id': responder_id,
         'requester'   : {
-            'name'    : receiver_name,
-            'email'   : receiver_email  
+            'name'    : messaging_metadata["recipient_name"],
+            'email'   : messaging_metadata["recipient_email"] 
         } 
     }
 
@@ -146,7 +144,7 @@ def create_freshdesk_ticket(exception_or_error_message:str, custom_subject:str, 
     try:
         response = requests.post(
             API_URL,
-            auth    = (freshdesK_vars["FRESHDESK_API_KEY"], 'X'),
+            auth    = (FRESHDESK_CREDENTIALS["FRESHDESK_API_KEY"], 'X'),
             json    = json.dumps(ticket_data),
             timeout = 30,
             headers = {'Content-Type' : 'application/json'}
@@ -170,7 +168,7 @@ def create_freshdesk_ticket(exception_or_error_message:str, custom_subject:str, 
             due_by      = ticket_info.get("due_by")
 
             if ticket_id:
-                custom_message = f"A support ticket under the reference {ticket_id} has been created. You can view your outstanding support tickets by logging into your Freshdesk account under your login email {receiver_email}. This will be due by {due_by}."
+                custom_message = f"A support ticket under the reference {ticket_id} has been created. You can view your outstanding support tickets by logging into your Freshdesk account. This will be due by {due_by}."
 
         elif response.status_code == 429:
             custom_message = f"API request limit exceeded: {response.status_code}"
@@ -187,19 +185,20 @@ def send_notification(custom_message: str,) -> None:
     """Sends a notification to the address specificed in the 'receiver_name' parameter, which will pass a custom message to the 'message_body' module.
     """
     msg             = MIMEMultipart()
-    msg['Subject']  = f"System Degradation Alert | {vm_name}"
-    msg['From']     = f'"{sender_name}" <{sender_email}>'
-    msg['To']       = receiver_email
+    msg['Subject']  = f"System Degradation Alert | {service_allocation_data['virtual_machine']}"
+    msg['From']     = f'"{messaging_metadata["sender_name"]}" <{messaging_metadata["sender_email"]}>'
+    msg['To']       = messaging_metadata["recipient_email"]
     body            = MIMEText(message_body(custom_message), 'html')
     msg.attach(body)
-
+    
     try:
-        with smtplib.SMTP(smtp_constants["SMTP_SERVER"], smtp_constants["SMTP_PORT"]) as server:
+        with smtplib.SMTP(SMTP_CREDENTIALS["SMTP_SERVER"], SMTP_CREDENTIALS["SMTP_PORT"]) as server:
             server.starttls()
-            server.login(smtp_constants["SMTP_LOGIN"], smtp_constants["SMTP_PASSWORD"])
-            server.sendmail(sender_email, receiver_email, msg.as_string())
+            server.login(SMTP_CREDENTIALS["SMTP_LOGIN"], SMTP_CREDENTIALS["SMTP_PASSWORD"])
+            server.sendmail(messaging_metadata["sender_email"], messaging_metadata["recipient_email"], msg.as_string())
     except Exception as e:
-        custom_subject = "Notification Send Error"
+        custom_subject = "Message Dispatch Issue"
+        print(f"custom_message - {e}")
         create_freshdesk_ticket(e, custom_subject)
 
 @assign_log_number
@@ -225,11 +224,11 @@ def message_body(custom_message: str, assign_log_number:str = None) -> str:
             </tr>
             <tr>
                 <th>VM Name:</th>
-                <td>{vm_name}</td>
+                <td>{service_allocation_data['virtual_machine']}</td>
             </tr>
             <tr>
-                <th>Resource Group Name:</th>
-                <td>{resource_group_name}</td>
+                <th>Resource Group:</th>
+                <td>{service_allocation_data['resource_group']}</td>
             </tr>
             <tr>
                 <th>Comment:</th>
@@ -238,14 +237,14 @@ def message_body(custom_message: str, assign_log_number:str = None) -> str:
         </table>
     """
     
-    return  f"""Dear {receiver_name}<br><br>
+    return  f"""Dear {messaging_metadata['recipient_name']}<br><br>
         We are writing to you because an incident has occured during the normal operation of your VM, & we will now commence an investigation into this.<br><br>
         ======================<br>
         {resource_data_table}
         ======================<br>
-        If you need further assistance, please contact us at engineering{smtp_constants['SMTP_DOMAIN']}.<br><br>
+        If you need further assistance, please contact us at engineering{SMTP_CREDENTIALS['SMTP_DOMAIN']}.<br><br>
         Yours sincerely<br>
-        <b>{sender_name}</b><br><br>
+        <b>{messaging_metadata['sender_name']}</b><br><br>
         """
 
 def get_vm_status(compute_client) -> str:
@@ -255,7 +254,7 @@ def get_vm_status(compute_client) -> str:
 
     try:
         # Explicitly request the instance view
-        vm = compute_client.virtual_machines.get(resource_group_name, vm_name, expand='instanceView')
+        vm = compute_client.virtual_machines.get(service_allocation_data["resource_group"], service_allocation_data["virtual_machine"], expand='instanceView')
         
         # Check if instance view is available
         if vm.instance_view:
@@ -314,9 +313,11 @@ def log_to_azure_monitor(new_vm_status:str, assign_log_number:str = None) -> Non
     """Logs the incident data to Azure Monitor via HTTP Data Collector API.
     Disgreard Log Number data"""
 
+    print("Attemptin to log status to Azure.....")
+    
     log_data = [{
         "TimeGenerated"     : datetime.now(timezone.utc).isoformat(),
-        "VMName"            : vm_name,
+        "VMName"            : service_allocation_data["virtual_machine"],
         "VMStatus"          : new_vm_status,
         "LogNumber"         : assign_log_number,
     }]
@@ -325,9 +326,9 @@ def log_to_azure_monitor(new_vm_status:str, assign_log_number:str = None) -> Non
     body = json.dumps(log_data)
 
     # Generate the headers with the signature
-    headers = generate_authentication_signature(azure_vars["LOGS_WORKSPACE_ID"], azure_vars["LOGS_WORKSPACE_KEY"], body)
+    headers = generate_authentication_signature(AZURE_VARS["LOGS_WORKSPACE_ID"], AZURE_VARS["LOGS_WORKSPACE_KEY"], body)
 
-    LOGS_API_ENDPOINT = f"https://{azure_vars['LOGS_WORKSPACE_ID']}.ods.opinsights.azure.com/api/logs?api-version=2016-04-01"
+    LOGS_API_ENDPOINT = f"https://{AZURE_VARS['LOGS_WORKSPACE_ID']}.ods.opinsights.azure.com/api/logs?api-version=2016-04-01"
     
     custom_message = None
 
@@ -335,7 +336,11 @@ def log_to_azure_monitor(new_vm_status:str, assign_log_number:str = None) -> Non
         
         response = requests.post(LOGS_API_ENDPOINT, headers=headers, data=body)
         
-        if response.status_code != 200:
+        if response.status_code == 200:
+
+            custom_message = f"There is a degradation status to your VM {service_allocation_data['virtual_machine']} from resource group {service_allocation_data['resource_group']}. Status {new_vm_status}"
+        
+        else:
 
             custom_message = f"There was an error logging to Azure. Logging error {response.status_code}, Response: {response.text}"
 
@@ -352,21 +357,25 @@ def log_to_azure_monitor(new_vm_status:str, assign_log_number:str = None) -> Non
 
 def main() -> None:
     
-    previous_vm_status = "PowerState/running"
+    previous_vm_status = "PowerState/running"  
+    is_shutdown_logged = False
     
     while True:
         
-        compute_client      = service_principal_authentication()
-        current_vm_status   = get_vm_status(compute_client)
-
+        compute_client = service_principal_authentication()
+        current_vm_status = get_vm_status(compute_client)
+        
         if current_vm_status != previous_vm_status:
-            
-            if current_vm_status != "PowerState/running":
-            
+            if current_vm_status != "PowerState/running" and not is_shutdown_logged:
                 log_to_azure_monitor(current_vm_status)
+                is_shutdown_logged = True 
+            
+            if current_vm_status == "PowerState/running":
+                is_shutdown_logged = False
 
         previous_vm_status = current_vm_status
-        time.sleep(300)
+        
+        time.sleep(300)  # Pause for 5 minutes between checks
 
 if __name__ == "__main__":
     main()
