@@ -312,8 +312,6 @@ def generate_authentication_signature(workspace_id:str, workspace_key:str, body)
 def log_to_azure_monitor(new_vm_status:str, assign_log_number:str = None) -> None:
     """Logs the incident data to Azure Monitor via HTTP Data Collector API.
     Disgreard Log Number data"""
-
-    print("Attemptin to log status to Azure.....")
     
     log_data = [{
         "TimeGenerated"     : datetime.now(timezone.utc).isoformat(),
