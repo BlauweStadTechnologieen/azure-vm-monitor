@@ -247,7 +247,7 @@ def message_body(custom_message: str, assign_log_number:str = None) -> str:
         <b>{messaging_metadata['sender_name']}</b><br><br>
         """
 
-def get_vm_status(compute_client) -> str:
+def get_vm_status(compute_client) -> None:
     """Retrieve the current status of the VM."""
     
     custom_message = None
@@ -265,14 +265,14 @@ def get_vm_status(compute_client) -> str:
 
     except Exception as e:
         
-        custom_message   =   f"There was an error in the retrieval of the status of your VM. Full error logging is available: {e} ."
+        custom_message = f"There was an error in the retrieval of the status of your VM - {e} ."
 
     if custom_message:
         custom_subject = "Error with Obtaining VM Status"
         create_freshdesk_ticket(custom_message, custom_subject)
         print(custom_message)
 
-    return custom_message
+    return
 
 def generate_incident_reference_number() -> str:
     """Generate an incident reference number to be logged in the Azure monitoring logs, using Python's built-in UUID module. UUID4 is applied."""
@@ -344,11 +344,11 @@ def log_to_azure_monitor(new_vm_status:str, assign_log_number:str = None) -> Non
 
     except Exception as e:
 
-        custom_message = f"There was an error in the request retrieval. Logs available: {e}"
+        custom_message = f"There was an error in the request retrieval - {e}"
 
     if custom_message:
-        send_notification(custom_message)
-        create_freshdesk_ticket(custom_message, "Logging to Azure Monitoring System")
+        custom_subject = "Logging to Azure Monitoring System"
+        create_freshdesk_ticket(custom_message, custom_subject)
         print(custom_message)
 
     return
